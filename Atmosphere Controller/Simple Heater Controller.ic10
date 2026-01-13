@@ -1,0 +1,57 @@
+#====
+# Simple Heater Controller v1.0.0
+# by sdust
+#====
+alias Target d0     # A Wall Heater to be turned on/off. If this device is Logic Memory then NameHash
+alias Sensor d1     # A Sensor (Gas Sensor or etc.) in target room.
+alias Dial d2       # A Dial (or Logic Memory, etc.) to set threshold temperature (Celsius degree).
+alias CurDisplay d3 # (Optional) A display to show current temperature.
+alias SetDisplay d4 # (Optional) A display to show setting temperature.
+#----
+define Celsius 273
+alias CurrentVal r15
+alias SettingVal r14
+alias TargetSwitch r13
+alias DispColor r12
+#====
+MainLoop:
+yield
+l CurrentVal Sensor Temperature
+l SettingVal Dial Setting
+add SettingVal SettingVal Celsius
+move DispColor Color.White # normal temperature
+bgtal CurrentVal SettingVal OnUpper
+bltal CurrentVal SettingVal OnLower
+jal DisplayProcess
+jal SwitchProcess
+j MainLoop
+#====
+OnUpper:
+move TargetSwitch 0
+move DispColor Color.Green # too hot
+j ra
+OnLower:
+move TargetSwitch 1
+move DispColor Color.Blue # too cool
+j ra
+DisplayProcess:
+brdns CurDisplay 5
+sub r0 CurrentVal Celsius
+s CurDisplay Mode 4
+s CurDisplay Setting r0
+s CurDisplay Color DispColor
+brdns SetDisplay 5
+sub r0 SettingVal Celsius
+s SetDisplay Mode 4
+s SetDisplay Setting r0
+s SetDisplay Color DispColor
+j ra
+SwitchProcess:
+l r0 Target PrefabHash
+breq r0 HASH("StructureLogicMemory") 3
+s Target On TargetSwitch
+j ra
+l r0 Target Setting # using setting of LogicMemory as NameHash
+sbn HASH("StructureWallHeater") r0 On TargetSwitch
+j ra
+#====
