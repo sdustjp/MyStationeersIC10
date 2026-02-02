@@ -1,0 +1,85 @@
+#====
+# Pressure Controller v0.0.0
+# by sdust
+#====
+alias Target d0     # A device to be turned on/off. If device is Logic Memory then NameHash
+alias Sensor d1     # A Sensor (Gas Sensor or etc.) in target room.
+alias Dial d2       # A Dial (or Logic Memory, etc. setting device) to set threshold value (kPa).
+alias CurrentDsp d3 # (Optional) A display to show current temperature.
+alias SettingDsp d4 # (Optional) A display to show setting temperature.
+alias Operation d5  # 0:pressure > setting -> ON, pressure < setting -> OFF; 1:pressure > setting -> OFF, pressure < setting -> ON
+#----
+alias CurrentVal r15
+alias SettingVal r14
+alias TargetSwitch r13
+alias DispColor r12
+clr db
+move sp 0
+#-- Target device NameHash (if d0 is not set) --
+push HASH("device label name")
+#-- Target device PrefabHash (if d0 is LogicMemory or not set) --
+push HASH("StructureActiveVent")
+push HASH("StructurePoweredVent")
+push HASH("StructurePoweredVentLarge")
+push HASH("StructureVolumePump")
+push HASH("StructureTurboVolumePump")
+push HASH("StructurePoweredVentLarge")
+#====
+MainLoop:
+yield
+l CurrentVal Sensor Pressure
+l SettingVal Dial Setting
+move DispColor Color.White # normal pressure
+bgtal CurrentVal SettingVal OnUpper
+bltal CurrentVal SettingVal OnLower
+jal DisplayProcess
+jal SwitchProcess
+j MainLoop
+#====
+OnUpper:
+brdns Operation 3
+l r0 Operation Setting
+jr 2
+l r0 db Setting
+brnez r0 4
+move TargetSwitch 1
+move DispColor Color.Orange # too hot
+jr 3
+move TargetSwitch 1
+move DispColor Color.Orange # too hot
+j ra
+OnLower:
+move TargetSwitch 0
+move DispColor Color.Green # too cool
+j ra
+DisplayProcess:
+brdns CurrentDsp 5
+sub r0 CurrentVal Celsius
+s CurrentDsp Mode 4
+s CurrentDsp Setting r0
+s CurrentDsp Color DispColor
+brdns SettingDsp 5
+sub r0 SettingVal Celsius
+s SettingDsp Mode 4
+s SettingDsp Setting r0
+s SettingDsp Color DispColor
+j ra
+SwitchProcess:
+brdns Target 7
+l r0 Target PrefabHash
+breq r0 HASH("StructureLogicMemory") 3
+s Target On TargetSwitch # direct switching a device
+j ra
+l r1 Target Setting # using setting of LogicMemory as NameHash if target device is LogicMemory
+jr 2
+get r1 db 0 # using stack memory (address:0) as target NameHash if target device is not set.
+l r2 db StackSize
+move r3 1 # loop counter
+SwitchProcessLoop:
+bge r3 r2 ra
+get r0 db r3 # Target PrefabHash
+beqz r0 ra
+sbn r0 r1 On TargetSwitch
+add r3 r3 1
+j SwitchProcessLoop
+#====
