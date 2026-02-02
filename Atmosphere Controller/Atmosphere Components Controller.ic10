@@ -1,0 +1,124 @@
+#====
+# Atmosphere Components Controller v0.0.0
+# by sdust
+#====
+alias Target d0     # A device to be turned on/off. If this device is Logic Memory then NameHash.
+alias Sensor d1     # A Sensor (Gas Sensor or etc.) in target room.
+alias Dial d2       # A Dial (or Logic Memory, etc.) to set threshold value.
+alias CurrentDsp d3 # (Optional) A display to show current value.
+alias SettingDsp d4 # (Optional) A display to show setting value.
+alias Operation d5  # (Optional) 0-16:Ratio, 32-48:Partial Pressure (* is gas type), +64: invert control.
+define Celsius 273
+alias CurrentVal r15
+alias SettingVal r14
+alias TargetSwitch r13
+alias DispColor r12
+alias OpCode r11
+alias InvertFlag r10
+alias GasType r9
+alias PressureFlag r8
+MainLoop:
+yield
+l OpCode Operation Setting
+and GasType OpCode $1F
+bgt GasType 16 MainLoop
+and PressureFlag OpCode $20
+and InvertFlag OpCode $40
+jal GetGasRatio
+move CurrentVal r0
+breqz PressureFlag 3
+l r0 Sensor Pressure
+mul CurrentVal CurrentVal r0 # Calc Partial Pressure
+breqz PressureFlag 3
+l SettingVal Dial Setting
+jr 2
+l SettingVal Dial Ratio
+move DispColor Color.White # neutral
+add r1 SettingVal 1
+bgeal CurrentVal r1 OnUpper
+sub r1 SettingVal 1
+bleal CurrentVal r1 OnLower
+jal DisplayProcess
+jal SwitchProcess
+j MainLoop
+#====
+GetGasRatio:
+move r0 0.0
+mul r1 GasType 2
+add r1 r1 1
+jr r1
+l r0 Sensor RatioOxygen
+j ra
+l r0 Sensor RatioNitrogen
+j ra
+l r0 Sensor RatioCarbonDioxide
+j ra
+l r0 Sensor RatioVolatiles
+j ra
+l r0 Sensor RatioPollutant
+j ra
+l r0 Sensor RatioWater
+j ra
+l r0 Sensor RatioNitrousOxide
+j ra
+l r0 Sensor RatioLiquidNitrogen
+j ra
+l r0 Sensor RatioLiquidOxygen
+j ra
+l r0 Sensor RatioLiquidVolatiles
+j ra
+l r0 Sensor RatioSteam
+j ra
+l r0 Sensor RatioLiquidCarbonDioxide
+j ra
+l r0 Sensor RatioLiquidPollutant
+j ra
+l r0 Sensor RatioLiquidNitrousOxide
+j ra
+l r0 Sensor RatioHydrogen
+j ra
+l r0 Sensor RatioLiquidHydrogen
+j ra
+l r0 Sensor RatioPollutedWater
+j ra
+OnUpper:
+brnez InvertFlag 4
+move TargetSwitch 0
+move DispColor Color.Green # normal
+jr 3
+move TargetSwitch 1
+move DispColor Color.Orange # too hot
+j ra
+OnLower:
+brnez InvertFlag 4
+move TargetSwitch 1
+move DispColor Color.Blue # too cool
+jr 3
+move TargetSwitch 0
+move DispColor Color.Green # normal
+j ra
+DisplayProcess:
+brnez PressureFlag 3
+s r1 Mode 1 # %
+jr 2
+s r1 Mode 14 # Pa
+brdns CurrentDsp 4
+s CurrentDsp Mode r1
+s CurrentDsp Setting CurrentVal
+s CurrentDsp Color DispColor
+brdns SettingDsp 4
+s SettingDsp Mode r1
+s SettingDsp Setting SettingVal
+s SettingDsp Color DispColor
+sll r1 1 GasType
+s db Setting r1
+j ra
+SwitchProcess:
+l r0 Target PrefabHash
+breq r0 HASH("StructureLogicMemory") 3
+s Target On TargetSwitch
+j ra
+l r0 Target Setting # using setting of LogicMemory as NameHash
+sbn HASH("StructureWallHeater") r0 On TargetSwitch
+j ra
+#====
